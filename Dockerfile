@@ -1,40 +1,27 @@
 # syntax=docker/dockerfile:1.6
-# Dockerfile for receipt-system on Render.com
-# Super simple diagnostic version: set -ex prints every command, exits on first failure
+# Pure-Python Dockerfile for receipt-system
+# Uses RapidOCR (ONNX runtime) - no system packages, no apt-get needed
+# Render Docker build doesn't have apt-get network access, so we go pure-pip.
 
 FROM python:3.11-slim
 
-ARG CACHEBUST=2026-07-03-r4
-
-# Use set -ex so we see exactly which command fails
-RUN set -ex \
-    && echo "OS info:" \
-    && cat /etc/os-release \
-    && echo "Trying apt-get update..." \
-    && apt-get update \
-    && echo "Trying apt-get install..." \
-    && apt-get install -y --no-install-recommends \
-        tesseract-ocr \
-        tesseract-ocr-eng \
-        tesseract-ocr-msa \
-        tesseract-ocr-chi_sim \
-    && echo "apt-get install done, verifying..." \
-    && tesseract --version \
-    && which tesseract \
-    && echo "TESSERACT OK" \
-    && echo "$CACHEBUST" > /opt/tesseract-marker.txt
+ARG CACHEBUST=2026-07-03-r5
 
 WORKDIR /app
 
-# Install Python dependencies
+# Just Python deps - everything is pip-installable now
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-ENV PATH="/usr/local/bin:/usr/bin:/bin:${PATH}"
-ENV TESSERACT_PATH=/usr/bin/tesseract
+# Verify the OCR engine loads at build time
+RUN python -c "from rapidocr_onnxruntime import RapidOCR; print('RapidOCR build check OK')"
+
+# Mark this image as the RapidOCR build (for runtime diagnostic)
+RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
+
 ENV PORT=8000
 EXPOSE 8000
 
