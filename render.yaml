@@ -9,7 +9,7 @@ services:
     plan: free
     buildCommand: bash build.sh
     startCommand: gunicorn web.app:app --bind 0.0.0.0:$PORT
-    healthCheckPath: /
+    healthCheckPath: /dashboard
     envVars:
       - key: PYTHON_VERSION
         value: 3.11

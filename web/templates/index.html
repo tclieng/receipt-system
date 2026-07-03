@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  .hero {
+    background: linear-gradient(135deg, #1a3d20 0%, #2d5a35 100%);
+    color: #fff;
+    padding: 60px 40px;
+    border-radius: 12px;
+    text-align: center;
+    margin: 40px 0;
+  }
+  .hero h1 { font-size: 36px; margin-bottom: 16px; }
+  .hero p { font-size: 18px; opacity: 0.85; margin-bottom: 32px; }
+  .btn {
+    display: inline-block;
+    background: #c9a227;
+    color: #1a3d20;
+    padding: 14px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .btn:hover { background: #e6b82a; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 40px 0;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #e1e4e8;
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card h3 { margin: 0 0 8px; color: #1a3d20; }
+  .card p { margin: 0; color: #57606a; font-size: 14px; }
+</style>
+
+<div class="hero">
+  <h1>Receipt Processing System</h1>
+  <p>OCR scanning, sales, expenses, cash reconciliation, P&L reports & Excel exports.</p>
+  <a href="/dashboard" class="btn">Open Dashboard →</a>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>📄 Receipts</h3>
+    <p>Upload & scan receipts with EasyOCR</p>
+  </div>
+  <div class="card">
+    <h3>💰 Sales</h3>
+    <p>Record daily sales transactions</p>
+  </div>
+  <div class="card">
+    <h3>📊 Expenses</h3>
+    <p>Track expenses by category</p>
+  </div>
+  <div class="card">
+    <h3>💵 Cash</h3>
+    <p>Opening, closing & reconciliation</p>
+  </div>
+  <div class="card">
+    <h3>📈 Reports</h3>
+    <p>P&L, monthly & cash reports</p>
+  </div>
+  <div class="card">
+    <h3>📥 Export</h3>
+    <p>Download data as Excel files</p>
+  </div>
+</div>
+{% endblock %}
