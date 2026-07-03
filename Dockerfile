@@ -19,11 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Verify the package imports cleanly. Diagnostic script surfaces the real
-# error (full traceback + lib probe + pip versions) instead of a bare
-# "exit code: 1". Models are bundled inside the pip package, no CDN needed.
+# Verify the package imports cleanly. Diagnostic script writes everything
+# to /tmp/import_debug.log (survives Python segfaults / missing-lib crashes)
+# and the Dockerfile cats the log on failure.
 COPY scripts/check_ocr_import.py /tmp/check_ocr_import.py
-RUN python /tmp/check_ocr_import.py || { echo "=== BUILD FAILED: rapidocr import check ==="; exit 1; }
+RUN python /tmp/check_ocr_import.py && echo "=== CHECK PASSED ===" || { echo "=== CHECK FAILED, log follows ==="; cat /tmp/import_debug.log 2>&1 || true; exit 1; }
 
 # Mark this image as the RapidOCR build (for runtime diagnostic)
 RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
