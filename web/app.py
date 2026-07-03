@@ -17,6 +17,18 @@ app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
 
 system = ReceiptSystem()
 
+# Reusable date helpers
+today = date.today()
+
+# Cache scanner — EasyOCR model download/init is expensive
+_scanner = None
+
+def get_scanner():
+    global _scanner
+    if _scanner is None:
+        _scanner = ReceiptScanner()
+    return _scanner
+
 
 def get_db():
     from core.schema import get_connection
@@ -49,7 +61,7 @@ def receipts():
         save_path = app.config["UPLOAD_FOLDER"] / file.filename
         file.save(str(save_path))
         try:
-            scanner = ReceiptScanner()
+            scanner = get_scanner()
             parsed = scanner.extract(str(save_path))
             receipt_id = scanner.save_receipt(str(save_path), parsed)
             flash(f"Receipt uploaded and scanned. Saved as ID {receipt_id}", "success")
@@ -136,7 +148,7 @@ def reports():
             monthly_df = MonthlyExpenseReport().monthly(int(request.form["year"]))
         elif rtype == "cash":
             cash_df = CashReconReport().reconcile(request.form["date"])
-    return render_template("reports.html", pnl=pnl_df, monthly=monthly_df, cash=cash_df)
+    return render_template("reports.html", pnl=pnl_df, monthly=monthly_df, cash=cash_df, today=today.isoformat(), year=today.year)
 
 
 @app.route("/export/<kind>")

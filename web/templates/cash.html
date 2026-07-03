@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  h2 { margin: 0 0 20px; color: #1a3d20; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+  .panel { background: #f0f7f0; border-radius: 12px; padding: 20px; }
+  .panel h3 { margin: 0 0 16px; color: #1a3d20; }
+  .panel label { display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px; }
+  .panel input { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 14px; }
+  .panel button {
+    background: #2d5a35; color: #fff; border: none;
+    padding: 9px 22px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 8px;
+  }
+  .panel button:hover { background: #1a3d20; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a3d20; color: #fff; padding: 9px 12px; text-align: left; font-size: 13px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e8e8e8; font-size: 13px; }
+  .amount { font-weight: 600; }
+  .variance-neg { color: #dc2626; font-weight: 600; }
+  .variance-pos { color: #16a34a; font-weight: 600; }
+</style>
+
+<h2>Cash Management</h2>
+
+<div class="cols">
+  <div class="panel">
+    <h3>💵 Cash Opening</h3>
+    <form method="POST">
+      <input type="hidden" name="kind" value="opening">
+      <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+      <label>Opening Balance (RM) <input type="number" name="amount" step="0.01" min="0" required></label>
+      <label>Note <input type="text" name="note" placeholder="Optional"></label>
+      <button type="submit">Save Opening</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h3>📋 Cash Closing</h3>
+    <form method="POST">
+      <input type="hidden" name="kind" value="closing">
+      <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+      <label>Expected Balance (RM) <input type="number" name="expected" step="0.01" required></label>
+      <label>Actual Balance (RM) <input type="number" name="actual" step="0.01" required></label>
+      <label>Note <input type="text" name="note" placeholder="Shortage / Overage notes"></label>
+      <button type="submit">Save Closing</button>
+    </form>
+  </div>
+</div>
+
+<h3 style="color:#1a3d20;margin-bottom:10px;">Opening Balances</h3>
+<table>
+  <thead><tr><th>Date</th><th>Opening Balance (RM)</th><th>Note</th></tr></thead>
+  <tbody>
+    {% for o in openings %}
+    <tr>
+      <td>{{ o.date }}</td>
+      <td class="amount">{{ "%.2f"|format(o.opening_balance) }}</td>
+      <td>{{ o.note or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" style="text-align:center;padding:20px;color:#888;">No openings recorded.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3 style="color:#1a3d20;margin:20px 0 10px;">Closing Balances</h3>
+<table>
+  <thead><tr><th>Date</th><th>Expected (RM)</th><th>Actual (RM)</th><th>Variance (RM)</th><th>Note</th></tr></thead>
+  <tbody>
+    {% for c in closings %}
+    <tr>
+      <td>{{ c.date }}</td>
+      <td class="amount">{{ "%.2f"|format(c.expected_balance) }}</td>
+      <td class="amount">{{ "%.2f"|format(c.actual_balance) }}</td>
+      <td class="{{ 'variance-neg' if c.variance < 0 else 'variance-pos' }}">
+        {{ "%.2f"|format(c.variance) }}
+      </td>
+      <td>{{ c.note or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" style="text-align:center;padding:20px;color:#888;">No closings recorded.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

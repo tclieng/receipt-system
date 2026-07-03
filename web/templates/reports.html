@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  h2 { margin: 0 0 20px; color: #1a3d20; }
+  .report-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .rcard {
+    background: #f0f7f0; border-radius: 12px; padding: 20px;
+    border: 1px solid #c6e8c6;
+  }
+  .rcard h3 { margin: 0 0 10px; color: #1a3d20; font-size: 15px; }
+  .rcard label { display: flex; flex-direction: column; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 8px; }
+  .rcard input, .rcard select {
+    padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+  }
+  .rcard button {
+    margin-top: 8px; background: #2d5a35; color: #fff; border: none;
+    padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 13px; width: 100%;
+  }
+  .rcard button:hover { background: #1a3d20; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th { background: #1a3d20; color: #fff; padding: 9px 14px; text-align: left; font-size: 13px; }
+  td { padding: 8px 14px; border-bottom: 1px solid #e8e8e8; font-size: 13px; }
+  tr:hover { background: #f9fafb; }
+  .amount { font-weight: 600; text-align: right; }
+  .total-row { background: #f0fdf4; font-weight: 700; }
+  .section { margin-bottom: 32px; }
+  .section h3 { color: #1a3d20; margin-bottom: 12px; }
+  .export-bar { margin-bottom: 12px; }
+  .export-bar a {
+    display: inline-block; background: #2d5a35; color: #fff;
+    padding: 7px 16px; border-radius: 7px; text-decoration: none; font-size: 13px; margin-right: 8px;
+  }
+  .export-bar a:hover { background: #1a3d20; }
+</style>
+
+<h2>Reports</h2>
+
+<div class="report-cards">
+  <!-- P&L Report -->
+  <div class="rcard">
+    <h3>📊 Profit & Loss</h3>
+    <form method="POST">
+      <input type="hidden" name="type" value="pnl">
+      <label>Start Date <input type="date" name="start" value="{{ today }}" required></label>
+      <label>End Date <input type="date" name="end" value="{{ today }}"></label>
+      <button type="submit">Generate P&L</button>
+    </form>
+  </div>
+
+  <!-- Monthly Expense -->
+  <div class="rcard">
+    <h3>📅 Monthly Expenses</h3>
+    <form method="POST">
+      <input type="hidden" name="type" value="monthly">
+      <label>Year <input type="number" name="year" value="{{ year }}" min="2020" max="2030"></label>
+      <button type="submit">Generate Monthly</button>
+    </form>
+  </div>
+
+  <!-- Cash Recon -->
+  <div class="rcard">
+    <h3>💵 Cash Reconciliation</h3>
+    <form method="POST">
+      <input type="hidden" name="type" value="cash">
+      <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+      <button type="submit">Reconcile Cash</button>
+    </form>
+  </div>
+</div>
+
+<!-- P&L Results -->
+{% if pnl %}
+<div class="section">
+  <h3>Profit &amp; Loss</h3>
+  <div class="export-bar">
+    <a href="/export/pnl?start={{ today }}&end={{ today }}">📥 Export P&L</a>
+  </div>
+  <table>
+    <thead><tr><th>Account</th><th>Amount (RM)</th></tr></thead>
+    <tbody>
+      {% for row in pnl %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td class="amount">{{ "%.2f"|format(row[1]) if row[1] else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Monthly Results -->
+{% if monthly %}
+<div class="section">
+  <h3>Monthly Expenses</h3>
+  <div class="export-bar">
+    <a href="/export/monthly?year={{ year }}">📥 Export Monthly</a>
+  </div>
+  <table>
+    <thead><tr><th>Month</th><th>Category</th><th>Amount (RM)</th></tr></thead>
+    <tbody>
+      {% for row in monthly %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td class="amount">{{ "%.2f"|format(row[2]) if row[2] else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Cash Recon Results -->
+{% if cash %}
+<div class="section">
+  <h3>Cash Reconciliation — {{ today }}</h3>
+  <div class="export-bar">
+    <a href="/export/cash?date={{ today }}">📥 Export Cash Recon</a>
+  </div>
+  <table>
+    <thead><tr><th>Item</th><th>Amount (RM)</th></tr></thead>
+    <tbody>
+      {% for row in cash %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td class="amount">{{ "%.2f"|format(row[1]) if row[1] else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

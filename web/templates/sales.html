@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  h2 { margin: 0 0 20px; color: #1a3d20; }
+  .form-box {
+    background: #f0f7f0; border-radius: 12px; padding: 24px;
+    margin-bottom: 28px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  }
+  .form-box label { display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #374151; }
+  .form-box input, .form-box select {
+    padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 14px; margin-top: 4px;
+  }
+  .form-box button {
+    background: #2d5a35; color: #fff; border: none;
+    padding: 9px 22px; border-radius: 8px; cursor: pointer; font-size: 14px; height: 38px;
+  }
+  .form-box button:hover { background: #1a3d20; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a3d20; color: #fff; padding: 10px 12px; text-align: left; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e8e8e8; }
+  tr:hover { background: #f9fafb; }
+  .amount { font-weight: 600; }
+  .total-row { font-weight: 700; background: #f0f9f0; }
+</style>
+
+<h2>Sales</h2>
+
+<div class="form-box">
+  <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+  <label>Amount (RM) <input type="number" name="amount" step="0.01" min="0" placeholder="0.00" required></label>
+  <label>Payment
+    <select name="payment">
+      <option value="cash">Cash</option>
+      <option value="card">Card</option>
+      <option value="qr">QR / Touch N Go</option>
+      <option value="other">Other</option>
+    </select>
+  </label>
+  <label>Note <input type="text" name="note" placeholder="Optional"></label>
+  <button type="submit">Add Sale</button>
+</div>
+
+<table>
+  <thead>
+    <tr><th>ID</th><th>Date</th><th>Amount (RM)</th><th>Payment</th><th>Note</th><th>Recorded</th></tr>
+  </thead>
+  <tbody>
+    {% if sales %}
+      {% set total = namespace(value=0) %}
+      {% for s in sales %}
+      <tr>
+        <td>{{ s.id }}</td>
+        <td>{{ s.date }}</td>
+        <td class="amount">{{ "%.2f"|format(s.amount) }}</td>
+        <td>{{ s.payment_method }}</td>
+        <td>{{ s.note or '-' }}</td>
+        <td>{{ s.created_at[:16] if s.created_at else '-' }}</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="6" style="text-align:center;padding:40px;color:#888;">No sales recorded yet.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}

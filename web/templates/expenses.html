@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  h2 { margin: 0 0 20px; color: #1a3d20; }
+  .form-box {
+    background: #f0f7f0; border-radius: 12px; padding: 24px;
+    margin-bottom: 28px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  }
+  .form-box label { display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #374151; }
+  .form-box input, .form-box select {
+    padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 14px; margin-top: 4px;
+  }
+  .form-box button {
+    background: #c0392b; color: #fff; border: none;
+    padding: 9px 22px; border-radius: 8px; cursor: pointer; font-size: 14px; height: 38px;
+  }
+  .form-box button:hover { background: #922b21; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a3d20; color: #fff; padding: 10px 12px; text-align: left; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e8e8e8; }
+  tr:hover { background: #f9fafb; }
+  .amount { font-weight: 600; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 99px;
+    font-size: 12px; font-weight: 600;
+  }
+</style>
+
+<h2>Expenses</h2>
+
+<div class="form-box">
+  <form method="POST" style="display:contents;">
+    <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+    <label>Amount (RM) <input type="number" name="amount" step="0.01" min="0" placeholder="0.00" required></label>
+    <label>Category
+      <select name="category">
+        <option value="bills">Bills</option>
+        <option value="supplies">Supplies</option>
+        <option value="fuel">Fuel</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="rent">Rent</option>
+        <option value="utilities">Utilities</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Payment
+      <select name="payment">
+        <option value="cash">Cash</option>
+        <option value="card">Card</option>
+        <option value="qr">QR</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Note <input type="text" name="note" placeholder="Optional"></label>
+    <button type="submit">Add Expense</button>
+  </form>
+</div>
+
+<table>
+  <thead>
+    <tr><th>ID</th><th>Date</th><th>Amount (RM)</th><th>Category</th><th>Payment</th><th>Supplier</th><th>Note</th></tr>
+  </thead>
+  <tbody>
+    {% if expenses %}
+      {% for e in expenses %}
+      <tr>
+        <td>{{ e.id }}</td>
+        <td>{{ e.date }}</td>
+        <td class="amount">{{ "%.2f"|format(e.amount) }}</td>
+        <td>{{ e.category }}</td>
+        <td>{{ e.payment_method }}</td>
+        <td>{{ e.supplier }}</td>
+        <td>{{ e.note or '-' }}</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="7" style="text-align:center;padding:40px;color:#888;">No expenses recorded yet.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block body %}
+<style>
+  h2 { margin: 0 0 20px; color: #1a3d20; }
+  .upload-box {
+    background: #f0f7f0;
+    border: 2px dashed #2d5a35;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+  }
+  .upload-box input[type=file] { margin: 12px 0; }
+  .upload-box button {
+    background: #2d5a35; color: #fff; border: none;
+    padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 15px;
+  }
+  .upload-box button:hover { background: #1a3d20; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th { background: #1a3d20; color: #fff; padding: 10px 12px; text-align: left; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e8e8e8; }
+  tr:hover { background: #f9fafb; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 99px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-processed { background: #d1fae5; color: #065f46; }
+  .badge-pending   { background: #fef3c7; color: #92400e; }
+  .badge-failed    { background: #fee2e2; color: #991b1b; }
+  .badge-review    { background: #dbeafe; color: #1e40af; }
+  .amount { font-weight: 600; }
+  .empty { text-align: center; padding: 40px; color: #888; }
+</style>
+
+<h2>Receipts</h2>
+
+<div class="upload-box">
+  <strong>Upload &amp; Scan Receipt</strong>
+  <p style="margin:6px 0 0;color:#57606a;font-size:13px;">Accepts JPG, PNG, PDF. Uses EasyOCR to extract date, total, tax, supplier.</p>
+  <form method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" accept="image/*,.pdf" required>
+    <button type="submit">Scan &amp; Save →</button>
+  </form>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>ID</th><th>Date</th><th>File</th><th>Supplier</th>
+      <th>Total (RM)</th><th>Tax (RM)</th><th>Payment</th><th>Status</th><th>Scanned</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if receipts %}
+      {% for r in receipts %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.date or '-' }}</td>
+        <td>{{ r.file_name }}</td>
+        <td>{{ r.supplier }}</td>
+        <td class="amount">{{ "%.2f"|format(r.total_amount) if r.total_amount else '-' }}</td>
+        <td>{{ "%.2f"|format(r.tax_amount) if r.tax_amount else '-' }}</td>
+        <td>{{ r.payment_method or '-' }}</td>
+        <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
+        <td>{{ r.created_at[:16] if r.created_at else '-' }}</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="9" class="empty">No receipts yet. Upload one above.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
