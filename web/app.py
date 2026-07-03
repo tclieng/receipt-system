@@ -74,7 +74,7 @@ def receipts():
         FROM receipts r LEFT JOIN suppliers s ON s.id = r.supplier_id
         ORDER BY r.date DESC, r.id DESC
     """).fetchall()
-    return render_template("receipts.html", receipts=rows)
+    return render_template("receipts.html", receipts=rows, today=today.isoformat())
 
 
 @app.route("/sales", methods=["GET", "POST"])
@@ -91,7 +91,7 @@ def sales():
         flash("Sale recorded", "success")
         return redirect(url_for("sales"))
     rows = db.execute("SELECT * FROM sales ORDER BY date DESC LIMIT 200").fetchall()
-    return render_template("sales.html", sales=rows)
+    return render_template("sales.html", sales=rows, today=today.isoformat())
 
 
 @app.route("/expenses", methods=["GET", "POST"])
@@ -113,7 +113,7 @@ def expenses():
         FROM expenses e LEFT JOIN suppliers s ON s.id = e.supplier_id
         ORDER BY e.date DESC LIMIT 200
     """).fetchall()
-    return render_template("expenses.html", expenses=rows)
+    return render_template("expenses.html", expenses=rows, today=today.isoformat())
 
 
 @app.route("/cash", methods=["GET", "POST"])
@@ -132,7 +132,7 @@ def cash():
         return redirect(url_for("cash"))
     rows = db.execute("SELECT * FROM cash_openings ORDER BY date DESC LIMIT 100").fetchall()
     closes = db.execute("SELECT * FROM cash_closings ORDER BY date DESC LIMIT 100").fetchall()
-    return render_template("cash.html", openings=rows, closings=closes)
+    return render_template("cash.html", openings=rows, closings=closes, today=today.isoformat())
 
 
 @app.route("/reports", methods=["GET", "POST"])
