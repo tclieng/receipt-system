@@ -1,29 +1,58 @@
 # syntax=docker/dockerfile:1.6
-# Pure-Python Dockerfile for receipt-system
-# Uses RapidOCR (ONNX runtime) - no apt-get needed in the build.
-# Base image: python:3.11-bookworm (full Debian) - bundles libgomp1, libgl1,
-# libglib2.0-0 etc. so onnxruntime and opencv-python work out of the box.
-# python:3.11-slim was failing because those system libs are missing and
-# we can't apt-get install them (Render's buildkit blocks Debian mirrors).
+# receipt-system Dockerfile - onnxruntime-friendly variant
+#
+# Strategy: download libgomp1 (and friends) as a .deb file via curl
+# (pip works in Render's build, so curl should too), then extract it
+# with dpkg-deb -x into /. This sidesteps the broken apt-get.
 
 FROM python:3.11-bookworm
 
-ARG CACHEBUST=2026-07-03-r7-diagnostics
+ARG CACHEBUST=2026-07-03-r8-manual-libgomp
 
 WORKDIR /app
 
-# Just Python deps - everything is pip-installable now
+# ----------------------------------------------------------------
+# 1) Install system libraries that onnxruntime / opencv need
+# ----------------------------------------------------------------
+# Try several Debian mirror URLs for libgomp1, libgl1, libglib2.0-0.
+# This is done WITHOUT apt-get update (which hangs on Render's build).
+# dpkg-deb -x extracts the contents into the image filesystem.
+#
+# If curl is reachable, we get the libs we need. If not, the build
+# will fail at the rapidocr import and we'll see exactly what's missing.
+RUN set -e; \
+    mkdir -p /opt/sysroot && cd /opt/sysroot && \
+    echo "=== Trying to download libgomp1 .deb ===" && \
+    for url in \
+        "http://deb.debian.org/debian/pool/main/g/gcc-12/libgomp1_12.2.0-14+deb12u1_amd64.deb" \
+        "http://ftp.debian.org/debian/pool/main/g/gcc-12/libgomp1_12.2.0-14+deb12u1_amd64.deb" \
+        "http://archive.debian.org/debian/pool/main/g/gcc-12/libgomp1_12.2.0-14+deb12u1_amd64.deb" \
+        "http://security.debian.org/debian-security/pool/updates/main/g/gcc-12/libgomp1_12.2.0-14+deb12u1_amd64.deb" \
+    ; do \
+        echo "Trying: $url"; \
+        if curl -sSL --fail --max-time 30 -o libgomp1.deb "$url"; then \
+            echo "  -> downloaded $(wc -c < libgomp1.deb) bytes"; \
+            dpkg-deb -x libgomp1.deb / && echo "  -> extracted OK" && break; \
+        else \
+            echo "  -> FAILED"; \
+        ; \
+        rm -f libgomp1.deb; \
+    done; \
+    echo "=== Verifying libgomp.so.1 is on disk ===" && \
+    find / -name 'libgomp.so*' 2>/dev/null || true
+
+# ----------------------------------------------------------------
+# 2) Install Python deps
+# ----------------------------------------------------------------
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# ----------------------------------------------------------------
+# 3) Copy app and run the diagnostic
+# ----------------------------------------------------------------
 COPY . .
-
-# Verify the package imports cleanly. Diagnostic script writes everything
-# to /tmp/import_debug.log (survives Python segfaults / missing-lib crashes)
-# and the Dockerfile cats the log on failure.
 COPY scripts/check_ocr_import.py /tmp/check_ocr_import.py
-RUN python /tmp/check_ocr_import.py && echo "=== CHECK PASSED ===" || { echo "=== CHECK FAILED, log follows ==="; cat /tmp/import_debug.log 2>&1 || true; exit 1; }
+RUN python /tmp/check_ocr_import.py && echo "=== CHECK PASSED ===" || { echo "=== CHECK FAILED, log follows ==="; cat /tmp/import_debug.log 2>&1 || echo "(no log file written)"; exit 1; }
 
 # Mark this image as the RapidOCR build (for runtime diagnostic)
 RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
