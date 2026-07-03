@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Dashboard</h1>
+{% if summary %}
+  <div class="cards">
+    <div class="card"><h3>Date</h3><div>{{ summary['date'] }}</div></div>
+    <div class="card"><h3>Total Sales</h3><div>{{ "%.2f"|format(summary['total_sales']) }}</div></div>
+    <div class="card"><h3>Total Expenses</h3><div>{{ "%.2f"|format(summary['total_expenses']) }}</div></div>
+    <div class="card"><h3>Profit</h3><div>{{ "%.2f"|format(summary['profit']) }}</div></div>
+    <div class="card"><h3>Closing</h3><div>{{ "%.2f"|format(summary['cash_closing']) }}</div></div>
+    <div class="card"><h3>Variance</h3><div>{{ "%.2f"|format(summary['cash_variance']) }}</div></div>
+  </div>
+{% else %}
+  <p>No data for today.</p>
+{% endif %}
+
+<h2>Recent Receipts</h2>
+<table>
+  <tr><th>ID</th><th>Date</th><th>Supplier</th><th>Total</th><th>Status</th></tr>
+  {% for r in recent %}
+    <tr>
+      <td>{{ r['id'] }}</td>
+      <td>{{ r['date'] }}</td>
+      <td>{{ r['supplier'] }}</td>
+      <td>{{ "%.2f"|format(r['total_amount'] or 0) }}</td>
+      <td>{{ r['status'] }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No receipts yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}
