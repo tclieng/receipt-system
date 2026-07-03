@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 # build.sh - Custom build for Render.com
-# Installs PyTorch CPU-only first, then all other dependencies
+# Installs Tesseract OCR system package + Python dependencies.
+# No PyTorch / EasyOCR: keeps memory well under 512 MB on free tier.
 
 set -e
 
-echo "=== Installing PyTorch CPU-only (faster, smaller) ==="
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+echo "=== Installing Tesseract OCR (English + Malay + Simplified Chinese) ==="
+apt-get update
+apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-msa \
+    tesseract-ocr-chi_sim
+rm -rf /var/lib/apt/lists/*
 
-echo "=== Installing remaining dependencies ==="
-pip install -r requirements.txt
+echo "=== Installing Python dependencies ==="
+pip install --no-cache-dir -r requirements.txt
 
-echo "=== Pre-downloading EasyOCR model (avoids first-request timeout) ==="
-python -c "import easyocr; easyocr.Reader(['en'], gpu=False, verbose=False)" || echo "EasyOCR model download failed at build time, will retry on first request"
+echo "=== Verifying Tesseract installation ==="
+tesseract --version
 
 echo "=== Build complete ==="
