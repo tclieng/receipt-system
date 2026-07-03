@@ -16,9 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Verify the OCR engine loads AND pre-downloads default models
-# (~15-30MB total) at build time so the first scan request is fast.
-RUN python -c "from rapidocr_onnxruntime import RapidOCR; e = RapidOCR(); print('RapidOCR build check OK, models pre-loaded')"
+# Verify the package imports cleanly. Model files are downloaded lazily on
+# first runtime use (the runtime container has different network access
+# than Render's build environment, which blocks most CDNs).
+RUN python -c "from rapidocr_onnxruntime import RapidOCR; print('RapidOCR package import OK (models download on first use)')"
 
 # Mark this image as the RapidOCR build (for runtime diagnostic)
 RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
