@@ -16,10 +16,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Verify the package imports cleanly. Model files are downloaded lazily on
-# first runtime use (the runtime container has different network access
-# than Render's build environment, which blocks most CDNs).
-RUN python -c "from rapidocr_onnxruntime import RapidOCR; print('RapidOCR package import OK (models download on first use)')"
+# Verify the package imports cleanly. Surface the actual error so we can
+# diagnose. (Models are bundled inside the pip package, no CDN download.)
+RUN python -c "import sys; import traceback
+try:
+    from rapidocr_onnxruntime import RapidOCR
+    print('RapidOCR package import OK')
+except Exception:
+    traceback.print_exc()
+    sys.exit(99)" || (echo '=== EXIT CODE:' $? '===' && echo '=== Listing /usr/lib for libgomp/libgl ===' && ls /usr/lib/x86_64-linux-gnu/ 2>&1 | grep -E 'libgomp|libgl|libgomp1' || true && echo '=== Python info ===' && python -V && pip show rapidocr-onnxruntime onnxruntime opencv-python-headless 2>&1 | head -20 && exit 1)
 
 # Mark this image as the RapidOCR build (for runtime diagnostic)
 RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
