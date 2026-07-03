@@ -4,11 +4,12 @@
 # Why Docker instead of build.sh?
 # Render's native Python env runs the build as a non-root user, so
 # `apt-get install` fails with "Could not open lock file /var/lib/dpkg/lock-frontend".
-# Docker builds run as root, so tesseract installs cleanly.
+# Docker builds run as root, so Tesseract installs cleanly.
 
 FROM python:3.11-slim
 
 # Install Tesseract OCR + language packs (English + Bahasa Malaysia + Simplified Chinese)
+# Defensively add /usr/bin to PATH in case the base image PATH doesn't include it.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         tesseract-ocr \
@@ -16,7 +17,12 @@ RUN apt-get update \
         tesseract-ocr-msa \
         tesseract-ocr-chi_sim \
     && rm -rf /var/lib/apt/lists/* \
-    && tesseract --version
+    && tesseract --version \
+    && which tesseract || echo "WARNING: tesseract not in PATH after install"
+
+# Ensure /usr/bin (where Debian puts tesseract) is on PATH at runtime.
+# Base image sets PATH; re-exporting it ensures our layers keep it.
+ENV PATH="/usr/local/bin:/usr/bin:/bin:${PATH}"
 
 WORKDIR /app
 
@@ -24,11 +30,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Verify tesseract is reachable from Python before shipping
+RUN python -c "import pytesseract; print('Tesseract:', pytesseract.get_tesseract_version())"
+
 # Copy application code
 COPY . .
-
-# Sanity check
-RUN python -c "import pytesseract; print('Tesseract:', pytesseract.get_tesseract_version())"
 
 # Render sets $PORT at runtime; provide a sensible default for local testing
 ENV PORT=8000

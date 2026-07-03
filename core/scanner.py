@@ -8,7 +8,9 @@ Usage:
     python -m core.scanner path/to/image.jpg
     scanner.scan(image_path)
 """
+import os
 import re
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,19 +22,52 @@ import pytesseract
 from .schema import get_connection, init_db
 
 
+# Known tesseract binary locations on Debian/Render (tried in order).
+_TESSERACT_PATHS = [
+    "/usr/bin/tesseract",
+    "/usr/local/bin/tesseract",
+    "/usr/local/sbin/tesseract",
+    "/bin/tesseract",
+]
+
+
 class ReceiptScanner:
     # English + Bahasa Malaysia + Simplified Chinese
     LANGUAGES = "eng+msa+chi_sim"
 
     def __init__(self):
+        # Try the default pytesseract lookup first.
         try:
             version = pytesseract.get_tesseract_version()
             print(f"Tesseract OCR loaded: v{version}")
-        except pytesseract.TesseractNotFoundError as e:
-            raise RuntimeError(
-                "Tesseract binary not found. Install with: "
-                "apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-msa tesseract-ocr-chi_sim"
-            ) from e
+            return
+        except pytesseract.TesseractNotFoundError:
+            pass
+
+        # pytesseract couldn't find it via PATH. Try our own search.
+        # 1. shutil.which (respects current PATH)
+        binary = shutil.which("tesseract")
+
+        # 2. Common Debian/Render locations
+        if not binary:
+            for path in _TESSERACT_PATHS:
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    binary = path
+                    break
+
+        if binary:
+            # Found it — point pytesseract directly at it.
+            pytesseract.tesseract_cmd = binary
+            version = pytesseract.get_tesseract_version()
+            print(f"Tesseract OCR loaded via fallback path ({binary}): v{version}")
+            return
+
+        # Give up with a helpful error.
+        raise RuntimeError(
+            "Tesseract binary not found. Tried: PATH, "
+            + ", ".join(_TESSERACT_PATHS)
+            + "\nInstall with: apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-msa tesseract-ocr-chi_sim"
+        )
 
     def preprocess(self, image_path: str):
         img = cv2.imread(image_path)
