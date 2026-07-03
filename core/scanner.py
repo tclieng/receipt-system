@@ -45,8 +45,15 @@ class ReceiptScanner:
             pass
 
         # pytesseract couldn't find it via PATH. Try our own search.
+        # 0. TESSERACT_PATH env var (set by our Dockerfile)
+        env_hint = os.environ.get("TESSERACT_PATH")
+        binary = None
+        if env_hint and os.path.isfile(env_hint) and os.access(env_hint, os.X_OK):
+            binary = env_hint
+
         # 1. shutil.which (respects current PATH)
-        binary = shutil.which("tesseract")
+        if not binary:
+            binary = shutil.which("tesseract")
 
         # 2. Common Debian/Render locations
         if not binary:
@@ -67,7 +74,14 @@ class ReceiptScanner:
         diag_lines = [f"Tesseract binary not found. Tried: {', '.join(tried)}"]
         # Diagnostics: what's actually on the system
         diag_lines.append(f"PATH env: {os.environ.get('PATH', '(unset)')}")
+        diag_lines.append(f"TESSERACT_PATH env: {env_hint or '(unset)'}")
         diag_lines.append(f"Platform: {sys.platform}")
+        # Check the build-time marker (proves the Dockerfile install ran)
+        marker = Path("/opt/tesseract-marker.txt")
+        if marker.exists():
+            diag_lines.append(f"Build marker EXISTS: {marker.read_text().strip()!r} (this image was built with tesseract)")
+        else:
+            diag_lines.append("Build marker MISSING at /opt/tesseract-marker.txt (this image was NOT built from current Dockerfile)")
         # Look anywhere on disk (bounded)
         try:
             import subprocess
