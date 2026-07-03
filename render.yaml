@@ -1,0 +1,15 @@
+# render.yaml - Render.com Auto-Deploy Configuration
+# Deploys Flask app with persistent SQLite database
+
+services:
+  - type: web
+    name: receipt-system
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web.app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
