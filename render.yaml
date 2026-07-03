@@ -8,7 +8,7 @@ services:
     region: singapore
     plan: free
     buildCommand: bash build.sh
-    startCommand: gunicorn web.app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn web.app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 1 --threads 2 --timeout 300 --graceful-timeout 60 --keep-alive 5 --access-logfile - --error-logfile -
     healthCheckPath: /dashboard
     envVars:
       - key: PYTHON_VERSION
