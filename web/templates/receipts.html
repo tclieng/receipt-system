@@ -15,7 +15,19 @@
     background: #2d5a35; color: #fff; border: none;
     padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 15px;
   }
-  .upload-box button:hover { background: #1a3d20; }
+  .upload-box button:hover:not(:disabled) { background: #1a3d20; }
+  .upload-box button:disabled { background: #888; cursor: not-allowed; }
+  .upload-status {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    display: none;
+    font-size: 14px;
+  }
+  .upload-status.success { background: #d1fae5; color: #065f46; display: block; }
+  .upload-status.error   { background: #fee2e2; color: #991b1b; display: block; }
+  .upload-status.info    { background: #dbeafe; color: #1e40af; display: block; }
+  .upload-status .meta   { font-size: 12px; opacity: 0.85; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   th { background: #1a3d20; color: #fff; padding: 10px 12px; text-align: left; }
   td { padding: 9px 12px; border-bottom: 1px solid #e8e8e8; }
@@ -30,17 +42,25 @@
   .badge-review    { background: #dbeafe; color: #1e40af; }
   .amount { font-weight: 600; }
   .empty { text-align: center; padding: 40px; color: #888; }
+  .file-chosen {
+    display: inline-block; margin-left: 8px; color: #57606a; font-size: 13px;
+  }
 </style>
 
 <h2>Receipts</h2>
 
 <div class="upload-box">
   <strong>Upload &amp; Scan Receipt</strong>
-  <p style="margin:6px 0 0;color:#57606a;font-size:13px;">Accepts JPG, PNG, PDF. Uses EasyOCR to extract date, total, tax, supplier.</p>
-  <form method="POST" enctype="multipart/form-data">
-    <input type="file" name="file" accept="image/*,.pdf" required>
-    <button type="submit">Scan &amp; Save →</button>
+  <p style="margin:6px 0 0;color:#57606a;font-size:13px;">
+    Accepts JPG, PNG, PDF. Uses Tesseract OCR (eng + msa + chi_sim) to extract date, total, tax, supplier.
+    Upload is AJAX — the page will not reload, so your selected file stays put.
+  </p>
+  <form id="upload-form">
+    <input type="file" id="file-input" name="file" accept="image/*,.pdf" required>
+    <button type="submit" id="upload-btn">Scan &amp; Save &rarr;</button>
+    <span id="file-chosen" class="file-chosen"></span>
   </form>
+  <div id="upload-status" class="upload-status"></div>
 </div>
 
 <table>
@@ -50,7 +70,7 @@
       <th>Total (RM)</th><th>Tax (RM)</th><th>Payment</th><th>Status</th><th>Scanned</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody id="receipts-tbody">
     {% if receipts %}
       {% for r in receipts %}
       <tr>
@@ -70,4 +90,116 @@
     {% endif %}
   </tbody>
 </table>
+
+<script>
+(function() {
+  const form       = document.getElementById('upload-form');
+  const fileInput  = document.getElementById('file-input');
+  const fileChosen = document.getElementById('file-chosen');
+  const uploadBtn  = document.getElementById('upload-btn');
+  const status     = document.getElementById('upload-status');
+  const tbody      = document.getElementById('receipts-tbody');
+
+  // Show the currently chosen filename next to the button.
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    fileChosen.textContent = f ? `${f.name} (${(f.size/1024).toFixed(0)} KB)` : '';
+  });
+
+  function setStatus(text, kind, meta) {
+    status.innerHTML = '';
+    const main = document.createElement('div');
+    main.textContent = text;
+    status.appendChild(main);
+    if (meta) {
+      const m = document.createElement('div');
+      m.className = 'meta';
+      m.textContent = meta;
+      status.appendChild(m);
+    }
+    status.className = 'upload-status ' + kind;
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  async function refreshTable() {
+    try {
+      const r = await fetch('/api/receipts', { headers: { 'Accept': 'application/json' } });
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No receipts yet. Upload one above.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${escapeHtml(r.date) || '-'}</td>
+          <td>${escapeHtml(r.file_name)}</td>
+          <td>${escapeHtml(r.supplier) || '-'}</td>
+          <td class="amount">${r.total_amount != null ? Number(r.total_amount).toFixed(2) : '-'}</td>
+          <td>${r.tax_amount ? Number(r.tax_amount).toFixed(2) : '-'}</td>
+          <td>${escapeHtml(r.payment_method) || '-'}</td>
+          <td><span class="badge badge-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span></td>
+          <td>${r.created_at ? escapeHtml(r.created_at).substring(0, 16) : '-'}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error('refreshTable failed:', err);
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = fileInput.files[0];
+    if (!file) {
+      setStatus('Please choose a file first.', 'error');
+      return;
+    }
+
+    uploadBtn.disabled = true;
+    const origText = uploadBtn.textContent;
+    uploadBtn.textContent = 'Uploading…';
+    setStatus(`Uploading ${file.name} (${(file.size/1024).toFixed(0)} KB) and running OCR — please wait…`, 'info');
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const resp = await fetch('/receipts', {
+        method: 'POST',
+        body: fd,
+        headers: { 'Accept': 'application/json' }
+      });
+      let data;
+      try { data = await resp.json(); }
+      catch (_) { data = { ok: false, error: `HTTP ${resp.status}` }; }
+
+      if (resp.ok && data.ok) {
+        const meta = [
+          data.supplier    ? `Supplier: ${data.supplier}` : 'Supplier: (not detected)',
+          data.date        ? `Date: ${data.date}`         : 'Date: (not detected)',
+          data.total_amount != null ? `Total: RM ${Number(data.total_amount).toFixed(2)}` : 'Total: (not detected)',
+          data.payment_method ? `Payment: ${data.payment_method}` : 'Payment: (not detected)',
+        ].join('  ·  ');
+        setStatus(`✓ Receipt saved (ID: ${data.receipt_id})`, 'success', meta);
+        // Refresh the table without reloading the page.
+        await refreshTable();
+        // IMPORTANT: do NOT clear fileInput.value — keeping the chosen file
+        // is what the user asked for. They can pick a new file to replace it.
+      } else {
+        setStatus(`✗ Error: ${data.error || ('HTTP ' + resp.status)}`, 'error');
+      }
+    } catch (err) {
+      setStatus(`✗ Network error: ${err.message}`, 'error');
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = origText;
+    }
+  });
+})();
+</script>
 {% endblock %}

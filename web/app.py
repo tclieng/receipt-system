@@ -54,18 +54,36 @@ def dashboard():
 def receipts():
     db = get_db()
     if request.method == "POST":
+        # Detect AJAX request: JS sets Accept: application/json
+        is_ajax = "application/json" in request.headers.get("Accept", "")
+
         file = request.files.get("file")
         if not file or file.filename == "":
+            if is_ajax:
+                return jsonify(ok=False, error="No file selected"), 400
             flash("No file selected", "error")
             return redirect(request.url)
+
         save_path = app.config["UPLOAD_FOLDER"] / file.filename
         file.save(str(save_path))
         try:
             scanner = get_scanner()
             parsed = scanner.extract(str(save_path))
             receipt_id = scanner.save_receipt(str(save_path), parsed)
+            if is_ajax:
+                return jsonify(
+                    ok=True,
+                    receipt_id=receipt_id,
+                    supplier=parsed.get("supplier"),
+                    date=parsed.get("date"),
+                    total_amount=parsed.get("total_amount"),
+                    tax_amount=parsed.get("tax_amount") or 0,
+                    payment_method=parsed.get("payment_method"),
+                )
             flash(f"Receipt uploaded and scanned. Saved as ID {receipt_id}", "success")
         except Exception as e:
+            if is_ajax:
+                return jsonify(ok=False, error=str(e)), 500
             flash(f"Scan failed: {e}", "error")
         return redirect(url_for("receipts"))
     rows = db.execute("""
@@ -75,6 +93,20 @@ def receipts():
         ORDER BY r.date DESC, r.id DESC
     """).fetchall()
     return render_template("receipts.html", receipts=rows, today=today.isoformat())
+
+
+@app.route("/api/receipts")
+def api_receipts():
+    """JSON endpoint used by the receipts page JS to refresh the table
+    after an AJAX upload (so the page never has to reload)."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT r.id, r.date, r.file_name, COALESCE(s.name,'-') as supplier,
+               r.total_amount, r.tax_amount, r.payment_method, r.status, r.created_at
+        FROM receipts r LEFT JOIN suppliers s ON s.id = r.supplier_id
+        ORDER BY r.date DESC, r.id DESC
+    """).fetchall()
+    return jsonify([dict(r) for r in rows])
 
 
 @app.route("/sales", methods=["GET", "POST"])
