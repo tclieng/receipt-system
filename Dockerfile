@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1.6
 # Pure-Python Dockerfile for receipt-system
-# Uses RapidOCR (ONNX runtime) - no system packages, no apt-get needed
-# Render Docker build doesn't have apt-get network access, so we go pure-pip.
+# Uses RapidOCR (ONNX runtime) - no apt-get needed in the build.
+# Base image: python:3.11-bookworm (full Debian) - bundles libgomp1, libgl1,
+# libglib2.0-0 etc. so onnxruntime and opencv-python work out of the box.
+# python:3.11-slim was failing because those system libs are missing and
+# we can't apt-get install them (Render's buildkit blocks Debian mirrors).
 
-FROM python:3.11-slim
+FROM python:3.11-bookworm
 
-ARG CACHEBUST=2026-07-03-r5
+ARG CACHEBUST=2026-07-03-r6-bookworm
 
 WORKDIR /app
 
