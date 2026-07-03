@@ -8,7 +8,7 @@
 
 FROM python:3.11-bookworm
 
-ARG CACHEBUST=2026-07-03-r6-bookworm
+ARG CACHEBUST=2026-07-03-r7-diagnostics
 
 WORKDIR /app
 
@@ -19,15 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Verify the package imports cleanly. Surface the actual error so we can
-# diagnose. (Models are bundled inside the pip package, no CDN download.)
-RUN python -c "import sys; import traceback
-try:
-    from rapidocr_onnxruntime import RapidOCR
-    print('RapidOCR package import OK')
-except Exception:
-    traceback.print_exc()
-    sys.exit(99)" || (echo '=== EXIT CODE:' $? '===' && echo '=== Listing /usr/lib for libgomp/libgl ===' && ls /usr/lib/x86_64-linux-gnu/ 2>&1 | grep -E 'libgomp|libgl|libgomp1' || true && echo '=== Python info ===' && python -V && pip show rapidocr-onnxruntime onnxruntime opencv-python-headless 2>&1 | head -20 && exit 1)
+# Verify the package imports cleanly. Diagnostic script surfaces the real
+# error (full traceback + lib probe + pip versions) instead of a bare
+# "exit code: 1". Models are bundled inside the pip package, no CDN needed.
+COPY scripts/check_ocr_import.py /tmp/check_ocr_import.py
+RUN python /tmp/check_ocr_import.py || { echo "=== BUILD FAILED: rapidocr import check ==="; exit 1; }
 
 # Mark this image as the RapidOCR build (for runtime diagnostic)
 RUN echo "rapidocr-build-${CACHEBUST}" > /opt/ocr-marker.txt
