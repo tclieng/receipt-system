@@ -1,16 +1,19 @@
 # render.yaml - Render.com Auto-Deploy Configuration
-#
-# Uses Docker (Dockerfile) instead of native Python.
-# Required because Render's native Python build env is non-root and
-# cannot run `apt-get install` (Tesseract is a system package).
-# Docker builds run as root, so Tesseract installs cleanly.
+# Deploys Flask app with persistent SQLite database
+# EasyOCR + PyTorch CPU (reverted from Tesseract/RapidOCR after
+# sys-lib install difficulties in Render's build env).
 
 services:
   - type: web
     name: receipt-system
-    env: docker
+    env: python
     region: singapore
     plan: free
-    # Docker handles build (Dockerfile) and start (CMD), so no buildCommand
-    # or startCommand needed here.
+    buildCommand: bash build.sh
+    # gunicorn flags: 1 worker (PyTorch loads ~400MB), threads for concurrency,
+    # longer timeout for first OCR scan (model loads + scan takes time).
+    startCommand: gunicorn web.app:app --bind 0.0.0.0:$PORT --worker-class gthread --workers 1 --threads 2 --timeout 300 --graceful-timeout 60 --keep-alive 5 --access-logfile - --error-logfile -
     healthCheckPath: /dashboard
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11

@@ -1,7 +1,7 @@
 flask>=3.0.0
 werkzeug>=3.0.0
 gunicorn>=21.0.0
-rapidocr-onnxruntime>=1.4.0
+easyocr>=1.7.2
 opencv-python-headless<4.12
 Pillow>=9.0,<12
 pandas>=2.0,<3

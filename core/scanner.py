@@ -1,88 +1,49 @@
 """
-Receipt scanner using RapidOCR (ONNX Runtime backend).
-
-Pure-Python replacement for Tesseract that does NOT need any system packages.
-Works on Render's Docker build without any apt-get install step.
-
-Memory: ~100 MB total (well under Render's 512 MB free tier)
-Speed: ~1-2s per image
-Languages: English, Chinese (Simplified), Bahasa Malaysia (Latin only)
-
+Receipt scanner using EasyOCR.
 Usage:
     python -m core.scanner path/to/image.jpg
     scanner.scan(image_path)
 """
-import os
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import cv2
+import easyocr
+import numpy as np
 
 from .schema import get_connection, init_db
 
 
 class ReceiptScanner:
-    """Wrapper around RapidOCR with the same .extract() / .save_receipt() API
-    as the Tesseract version, so the rest of the app doesn't change."""
-
     def __init__(self):
-        # Lazy import so missing ONNX binaries surface as a clear error
-        # only when the scanner is actually used (not at import time).
-        from rapidocr_onnxruntime import RapidOCR
-
-        self._engine = RapidOCR()
-        print("RapidOCR (ONNX) engine ready")
+        print("Loading EasyOCR model (first run downloads langdetect + English model)...")
+        self.reader = easyocr.Reader(["en"], gpu=False, verbose=False)
 
     def preprocess(self, image_path: str):
-        """Read + downscale + grayscale + denoise. RapidOCR works on the
-        original BGR image, but downscaling first keeps memory low."""
         img = cv2.imread(image_path)
         if img is None:
             raise FileNotFoundError(f"Image not found: {image_path}")
-        h, w = img.shape[:2]
-        max_dim = 1600
-        if max(h, w) > max_dim:
-            scale = max_dim / max(h, w)
-            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-        return img
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        den = cv2.fastNlMeansDenoising(gray, h=10, templateWindowSize=7, searchWindowSize=21)
+        return den, img
 
     def extract(self, image_path: str) -> dict:
-        img = self.preprocess(image_path)
-
-        # RapidOCR returns (None, [(box, text, confidence), ...], elapsed)
-        result = self._engine(img)
-        if not result or result[1] is None:
-            raise RuntimeError("RapidOCR returned no text for the image")
-
-        # Combine detected text lines into a single string, ordered top-to-bottom.
-        lines_with_pos = []
-        for box, text, conf in result[1]:
-            if not text or not text.strip():
-                continue
-            # Top y-coordinate (box is 4 corners).
-            y_top = min(p[1] for p in box)
-            lines_with_pos.append((y_top, text.strip()))
-
-        # Sort by vertical position so multi-line layout reads naturally.
-        lines_with_pos.sort(key=lambda t: t[0])
-        lines = [text for _, text in lines_with_pos]
-        text_clean = "\n".join(lines)
-
+        den, img = self.preprocess(image_path)
+        results = self.reader.readtext(den, detail=0, paragraph=True)
+        lines = [line.strip() for line in results if line.strip()]
+        text = "\n".join(lines)
         parsed = {
-            "ocr_text": text_clean,
-            "date": self._parse_date(text_clean),
-            "total_amount": self._parse_total(text_clean),
-            "tax_amount": self._parse_tax(text_clean),
-            "payment_method": self._parse_payment(text_clean),
-            "supplier": self._parse_supplier(text_clean),
+            "ocr_text": text,
+            "date": self._parse_date(text),
+            "total_amount": self._parse_total(text),
+            "tax_amount": self._parse_tax(text),
+            "payment_method": self._parse_payment(text),
+            "supplier": self._parse_supplier(text),
             "items": self._parse_items(lines),
         }
         return parsed
-
-    # ---- Parsing helpers (kept identical to the Tesseract version) ----
 
     def _first_match(self, text: str, patterns: list[str]) -> Optional[str]:
         for p in patterns:
@@ -114,9 +75,9 @@ class ReceiptScanner:
         raw = self._first_match(
             text,
             [
-                r"(?:Total|Amount|Grand Total|Payable|Balance|Ringgit)[:\s]+[^\d]*([\d,]+\.?\d*)",
+                r"(?:Total|Amount|Grand Total|Payable|Balance)[:\s]+[^\d]*([\d,]+\.?\d*)",
                 r"RM\s*([\d,]+\.?\d*)",
-                r"MYR\s*([\d,]+\.?\d*)",
+                r"(\d+\.\d{2})\s*$",
             ],
         )
         if raw:
@@ -128,13 +89,7 @@ class ReceiptScanner:
 
     def _parse_tax(self, text: str) -> float:
         raw = self._first_match(
-            text,
-            [
-                r"GST[:\s]+([\d,]+\.?\d*)",
-                r"SST[:\s]+([\d,]+\.?\d*)",
-                r"Tax[:\s]+([\d,]+\.?\d*)",
-                r"([\d,]+\.?\d*)\s*%\s*SST",
-            ],
+            text, [r"GST[:\s]+([\d,]+\.?\d*)", r"SST[:\s]+([\d,]+\.?\d*)", r"Tax[:\s]+([\d,]+\.?\d*)", r"([\d,]+\.?\d*)\s*%\s*SST"]
         )
         if raw:
             try:
@@ -145,11 +100,11 @@ class ReceiptScanner:
 
     def _parse_payment(self, text: str) -> Optional[str]:
         up = text.upper()
-        if any(k in up for k in ["CASH", "TUNAI"]):
+        if any(k in up for k in ["CASH"]):
             return "cash"
-        if any(k in up for k in ["CARD", "CREDIT", "DEBIT", "VISA", "MASTERCARD", "MYDEBIT"]):
+        if any(k in up for k in ["CARD", "CREDIT"]):
             return "card"
-        if any(k in up for k in ["QR", "TOUCH", "GO PAY", "GRABPAY", "SHOPEEPAY", "DUITNOW"]):
+        if any(k in up for k in ["QR", "TOUCH", "GO PAY", "GRABPAY"]):
             return "qr"
         return None
 
@@ -161,11 +116,7 @@ class ReceiptScanner:
                 continue
             if any(d.isdigit() for d in line):
                 continue
-            if any(k in line.upper() for k in [
-                "TOTAL", "AMOUNT", "PAY", "CASH", "CARD", "TAX", "SST",
-                "GST", "DATE", "TIME", "REF", "NO", "BILL", "INVOICE",
-                "THANK", "TERIMA", "KASIH",
-            ]):
+            if any(k in line.upper() for k in ["TOTAL", "AMOUNT", "PAY", "CASH", "CARD", "TAX", "SST", "DATE", "TIME", "REF", "NO"]):
                 continue
             if 3 <= len(line) <= 60:
                 candidates.append(line)
