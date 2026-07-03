@@ -62,12 +62,39 @@ class ReceiptScanner:
             print(f"Tesseract OCR loaded via fallback path ({binary}): v{version}")
             return
 
-        # Give up with a helpful error.
-        raise RuntimeError(
-            "Tesseract binary not found. Tried: PATH, "
-            + ", ".join(_TESSERACT_PATHS)
-            + "\nInstall with: apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-msa tesseract-ocr-chi_sim"
+        # Give up with a helpful, diagnostic error.
+        tried = ["PATH"] + _TESSERACT_PATHS
+        diag_lines = [f"Tesseract binary not found. Tried: {', '.join(tried)}"]
+        # Diagnostics: what's actually on the system
+        diag_lines.append(f"PATH env: {os.environ.get('PATH', '(unset)')}")
+        diag_lines.append(f"Platform: {sys.platform}")
+        # Look anywhere on disk (bounded)
+        try:
+            import subprocess
+            find_result = subprocess.run(
+                ["find", "/", "-name", "tesseract", "-type", "f", "-executable"],
+                capture_output=True, text=True, timeout=10
+            )
+            if find_result.stdout.strip():
+                diag_lines.append(f"Found tesseract binaries: {find_result.stdout.strip()}")
+            else:
+                diag_lines.append("No tesseract binary found anywhere under /")
+        except Exception as fe:
+            diag_lines.append(f"find failed: {fe}")
+        # Check dpkg
+        try:
+            import subprocess
+            dpkg_result = subprocess.run(
+                ["dpkg", "-l", "tesseract-ocr"],
+                capture_output=True, text=True, timeout=5
+            )
+            diag_lines.append(f"dpkg -l tesseract-ocr: {dpkg_result.stdout.strip() or '(no output)'}")
+        except Exception:
+            diag_lines.append("dpkg not available (probably not in this image)")
+        diag_lines.append(
+            "Install with: apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-msa tesseract-ocr-chi_sim"
         )
+        raise RuntimeError("\n".join(diag_lines))
 
     def preprocess(self, image_path: str):
         img = cv2.imread(image_path)
